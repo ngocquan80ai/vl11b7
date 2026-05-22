@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Học liệu tương tác: Bài 7 - Chuyển hoá năng lượng trong dao động điều hoà</title>
+
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']]
+            },
+            startup: {
+                typeset: false,
+                ready: () => {
+                    MathJax.startup.defaultReady();
+                    window.dispatchEvent(new Event('mathjax-ready'));
+                }
+            }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        [v-cloak] { display: none; }
+        .animate-fade-in { animation: fadeIn 0.35s ease-in-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+
+<body class="min-h-screen bg-slate-50 p-4 font-sans text-gray-800 md:p-8">
+    <div id="app" v-cloak class="mx-auto max-w-6xl overflow-hidden rounded-2xl border border-slate-100 bg-white p-5 shadow-xl md:p-8">
+        <header class="mb-8 text-center">
+            <h1 class="mb-2 text-2xl font-extrabold uppercase tracking-wide text-blue-700 md:text-3xl">
+                Bài 7: Bài tập sự chuyển hoá năng lượng
+            </h1>
+            <p class="mx-auto max-w-4xl text-sm font-medium text-gray-600 md:text-base">
+                Yêu cầu 6: Vận dụng được phương trình $a=-\omega^2x$ kết hợp các biểu thức bảo toàn cơ năng — Vật lí 11
+            </p>
+        </header>
+
+        <nav class="mb-6 flex flex-wrap gap-1 rounded-t-xl border-b-2 border-blue-200 bg-slate-50" aria-label="Điều hướng học liệu">
+            <button
+                v-for="tab in tabs"
+                :key="tab.id"
+                type="button"
+                @click="switchTab(tab.id)"
+                :class="[
+                    'px-4 py-3 text-sm font-bold transition-all duration-300 md:px-6 md:py-4 md:text-base',
+                    currentTab === tab.id ? 'bg-blue-600 text-white shadow-md' : 'text-gray-600 hover:bg-blue-100 hover:text-blue-800'
+                ]"
+            >
+                {{ tab.name }}
+            </button>
+        </nav>
+
+        <main class="min-h-[520px]">
+            <section v-show="currentTab === 'tab1'" class="animate-fade-in">
+                <div class="mb-6">
+                    <h2 class="border-l-4 border-blue-600 pl-3 text-2xl font-bold text-blue-800">
+                        Trò chơi kéo - thả: Liên kết Động lực học & Năng lượng
+                    </h2>
+                    <p class="mt-3 text-base text-gray-700">
+                        Kéo các thẻ trạng thái năng lượng vào đúng miền giá trị gia tốc tương ứng. Màu xanh báo hiệu các thẻ trong hộp đang đúng; màu đỏ báo hiệu còn thẻ đặt sai.
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-1 gap-8 md:grid-cols-2">
+                    <div class="flex flex-col gap-5">
+                        <div class="flex items-center justify-between border-b-2 border-blue-200 pb-2">
+                            <h3 class="text-xl font-bold text-blue-600">Các miền giá trị gia tốc</h3>
+                            <button
+                                type="button"
+                                @click="resetDragGame"
+                                class="rounded-lg border border-blue-200 px-3 py-1.5 text-sm font-bold text-blue-700 hover:bg-blue-50"
+                            >
+                                Làm lại
+                            </button>
+                        </div>
+
+                        <div
+                            v-for="zone in conceptZones"
+                            :key="zone.id"
+                            class="rounded-xl border-2 p-4 transition-colors duration-300"
+                            :class="getZoneColor(zone)"
+                        >
+                            <div class="mb-3 text-base font-bold text-gray-800" v-html="zone.title"></div>
+
+                            <div
+                                class="flex min-h-[135px] flex-col justify-center gap-2 rounded-lg border-2 border-dashed border-gray-400 bg-white p-3 shadow-inner"
+                                @dragover.prevent
+                                @drop="onDrop($event, zone.id)"
+                            >
+                                <div v-if="zone.items.length === 0" class="py-4 text-center text-sm italic text-gray-400">
+                                    Kéo thẻ và thả vào đây...
+                                </div>
+
+                                <div
+                                    v-for="item in zone.items"
+                                    :key="item.id"
+                                    draggable="true"
+                                    @dragstart="onDragStart($event, item, zone.id)"
+                                    @dragend="onDragEnd"
+                                    class="cursor-grab rounded-lg border border-blue-200 bg-white p-3 text-left text-sm font-medium leading-relaxed text-blue-950 shadow-md transition-colors hover:bg-blue-50 active:cursor-grabbing"
+                                    v-html="item.text"
+                                ></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col gap-5">
+                        <h3 class="border-b-2 border-amber-200 pb-2 text-xl font-bold text-amber-600">Trạng thái năng lượng cần phân loại</h3>
+
+                        <div
+                            class="min-h-[380px] rounded-xl border border-amber-200 bg-amber-50 p-5 shadow-inner"
+                            @dragover.prevent
+                            @drop="onDrop($event, 'bank')"
+                        >
+                            <div class="flex min-h-[300px] flex-col gap-4">
+                                <div v-if="formulaBank.length === 0" class="mt-10 text-center font-bold text-amber-600">
+                                    Đã phân loại hết thẻ! 🎉
+                                </div>
+
+                                <div
+                                    v-for="item in formulaBank"
+                                    :key="item.id"
+                                    draggable="true"
+                                    @dragstart="onDragStart($event, item, 'bank')"
+                                    @dragend="onDragEnd"
+                                    class="cursor-grab rounded-lg border-l-4 border-orange-500 bg-white p-4 text-sm font-medium leading-relaxed shadow-md transition-colors hover:bg-orange-100 active:cursor-grabbing md:text-base"
+                                    v-html="item.text"
+                                ></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section v-show="currentTab === 'tab2'" class="animate-fade-in space-y-6 text-lg leading-relaxed text-gray-800">
+                <h2 class="border-l-4 border-blue-600 pl-3 text-2xl font-bold text-blue-800">
+                    Lý thuyết trọng tâm: Hệ thống liên hệ Động lực học — Cơ năng
+                </h2>
+
+                <div class="rounded-xl border border-blue-200 bg-blue-50 p-5">
+                    <h3 class="mb-3 text-xl font-bold text-blue-700">1. Phương trình liên kết bản chất toán lý</h3>
+                    <ul class="list-disc space-y-3 pl-6 text-base">
+                        <li>
+                            <b>Mối liên hệ không gian:</b> Gia tốc đại số tỉ lệ thuận và trái dấu với li độ hình học: $a = -\omega^2 x$.
+                        </li>
+                        <li>
+                            <b>Khi biết tỉ lệ năng lượng $\frac{W_d}{W_t}=n$:</b>
+                            $$W = W_d + W_t = (n + 1)W_t \Rightarrow \frac{1}{2}m\omega^2A^2=(n+1)\frac{1}{2}m\omega^2x^2 \Rightarrow x=\pm\frac{A}{\sqrt{n+1}}$$
+                        </li>
+                        <li>
+                            <b>Thay vào phương trình động lực học:</b>
+                            $$a=-\omega^2x=\mp\frac{\omega^2A}{\sqrt{n+1}}$$
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="rounded-xl border border-indigo-200 bg-indigo-50 p-5">
+                    <h3 class="mb-3 text-xl font-bold text-indigo-700">2. Phân tách hệ thức cho hai loại con lắc</h3>
+                    <div class="overflow-x-auto text-base">
+                        <table class="w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+                            <thead>
+                                <tr class="bg-indigo-600 text-left text-white">
+                                    <th class="p-3">Hệ dao động</th>
+                                    <th class="p-3">Tần số góc $\omega$</th>
+                                    <th class="p-3">Biểu thức gia tốc</th>
+                                    <th class="p-3">Cơ năng toàn phần</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <tr>
+                                    <td class="p-3 font-semibold">Con lắc lò xo</td>
+                                    <td class="p-3">$\omega=\sqrt{\frac{k}{m}}$</td>
+                                    <td class="p-3">$a=-\frac{k}{m}x$</td>
+                                    <td class="p-3">$W=\frac{1}{2}kA^2=\frac{1}{2}m\omega^2A^2$</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-3 font-semibold">Con lắc đơn</td>
+                                    <td class="p-3">$\omega=\sqrt{\frac{g}{l}}$</td>
+                                    <td class="p-3">$a=-\frac{g}{l}s$ với $s=l\alpha$</td>
+                                    <td class="p-3">$W=\frac{1}{2}m\frac{g}{l}s_0^2=mgl(1-\cos\alpha_0)$</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="rounded-xl border border-purple-200 bg-purple-50 p-5 text-base font-medium">
+                    <h3 class="mb-3 text-xl font-bold text-purple-700">3. Tư duy đọc giao điểm trên đồ thị không gian $E-x$</h3>
+                    <ul class="list-disc space-y-2 pl-6">
+                        <li>Đường ngang nằm trên cùng biểu diễn <b>cơ năng toàn phần bảo toàn</b> $W$.</li>
+                        <li>Giao điểm của hai parabol $W_t(x)$ và $W_d(x)$ là mốc $W_d=W_t=\frac{W}{2}$.</li>
+                        <li>Tại mốc giao điểm, $x=\pm\frac{A}{\sqrt{2}}$ nên $|a|=\frac{\omega^2A}{\sqrt{2}}=\frac{|a_{\max}|}{\sqrt{2}}$.</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section v-show="currentTab === 'tab3'" class="animate-fade-in">
+                <h2 class="border-l-4 border-blue-600 pl-3 text-2xl font-bold text-blue-800">
+                    Mô phỏng tương tác: Đồ thị năng lượng không gian $E-x$
+                </h2>
+                <p class="mt-3 mb-6 text-base text-gray-700">
+                    Kéo các thanh trượt để quan sát hai parabol $W_t(x)$, $W_d(x)$, đường cơ năng $W$ và hai marker năng lượng tại đúng li độ hiện thời.
+                </p>
+
+                <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                    <aside class="flex flex-col justify-center space-y-5 rounded-xl border border-slate-300 bg-slate-50 p-6 shadow-sm lg:col-span-1">
+                        <h3 class="border-b pb-2 text-xl font-bold text-gray-800">Thông số hệ dao động</h3>
+
+                        <div>
+                            <label class="mb-1 flex justify-between text-base font-bold text-slate-700">
+                                <span>Khối lượng vật $m$</span>
+                                <span>{{ mass.toFixed(2) }} kg</span>
+                            </label>
+                            <input type="range" v-model.number="mass" min="0.1" max="1" step="0.05" class="h-3 w-full cursor-pointer appearance-none rounded-lg bg-slate-200 accent-slate-600">
+                        </div>
+
+                        <div>
+                            <label class="mb-1 flex justify-between text-base font-bold text-blue-700">
+                                <span>Biên độ $A$</span>
+                                <span>{{ amplitude.toFixed(1) }} cm</span>
+                            </label>
+                            <input type="range" v-model.number="amplitude" min="2" max="10" step="0.5" class="h-3 w-full cursor-pointer appearance-none rounded-lg bg-blue-200 accent-blue-600">
+                        </div>
+
+                        <div>
+                            <label class="mb-1 flex justify-between text-base font-bold text-emerald-700">
+                                <span>Tần số góc $\omega$</span>
+                                <span>{{ omegaMultiplier.toFixed(1) }}π rad/s</span>
+                            </label>
+                            <input type="range" v-model.number="omegaMultiplier" min="1" max="4" step="0.5" class="h-3 w-full cursor-pointer appearance-none rounded-lg bg-emerald-200 accent-emerald-600">
+                        </div>
+
+                        <div class="border-t pt-3">
+                            <label class="mb-1 flex justify-between text-base font-bold text-purple-700">
+                                <span>Li độ hiện thời $x$</span>
+                                <span class="font-mono">{{ xCurrent.toFixed(1) }} cm</span>
+                            </label>
+                            <input type="range" v-model.number="xCurrent" :min="-amplitude" :max="amplitude" step="0.1" class="h-3 w-full cursor-pointer appearance-none rounded-lg bg-purple-200 accent-purple-600">
+                        </div>
+
+                        <div class="space-y-1.5 rounded-lg border border-indigo-300 bg-indigo-100 p-4 text-sm font-semibold text-indigo-950">
+                            <div class="border-b border-indigo-200 pb-1 text-xs uppercase tracking-wide">Giá trị trạng thái tức thời</div>
+                            <div>• Cơ năng $W=$ <span class="font-mono font-bold text-red-700">{{ computedW.toFixed(2) }}</span> mJ</div>
+                            <div>• Thế năng $W_t=$ <span class="font-mono font-bold text-blue-700">{{ computedWt.toFixed(2) }}</span> mJ</div>
+                            <div>• Động năng $W_d=$ <span class="font-mono font-bold text-green-700">{{ computedWd.toFixed(2) }}</span> mJ</div>
+                            <div>• Vận tốc $v=$ <span class="font-mono font-bold text-emerald-700">{{ computedV.toFixed(1) }}</span> cm/s</div>
+                            <div>• Gia tốc $a=$ <span class="font-mono font-bold text-purple-700">{{ computedA.toFixed(2) }}</span> m/s²</div>
+                        </div>
+                    </aside>
+
+                    <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-md lg:col-span-2">
+                        <div class="relative h-[430px] w-full">
+                            <canvas id="oscillationCanvas"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section v-show="currentTab === 'tab4'" class="animate-fade-in">
+                <h2 class="mb-4 border-l-4 border-blue-600 pl-3 text-2xl font-bold text-blue-800">
+                    Đánh giá năng lực: Ma trận bẫy tư duy 4 lựa chọn
+                </h2>
+
+                <div class="flex flex-col gap-8">
+                    <article v-for="(q, qIndex) in quizData" :key="q.id" class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                        <div class="mb-4 flex items-center justify-between border-b pb-3">
+                            <span class="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-800">Câu số {{ qIndex + 1 }}</span>
+                            <span class="rounded-full bg-purple-100 px-3 py-1 text-xs font-bold text-purple-800">Mức độ: {{ q.level }}</span>
+                        </div>
+
+                        <p class="mb-4 text-lg font-bold leading-snug text-slate-800" v-html="q.question"></p>
+
+                        <div class="flex flex-col gap-3">
+                            <button
+                                v-for="option in q.options"
+                                :key="option.id"
+                                type="button"
+                                @click="selectOption(q, option)"
+                                :class="['rounded-lg border-2 p-4 text-left text-base transition-all duration-200', getOptionClass(q, option)]"
+                            >
+                                <span class="mr-3 rounded bg-white px-2 py-1 font-bold shadow-sm">{{ option.id }}</span>
+                                <span v-html="option.text"></span>
+                            </button>
+                        </div>
+
+                        <div
+                            v-if="q.selectedOption"
+                            :class="[
+                                'mt-4 rounded-lg border-l-4 p-5 text-base shadow-inner animate-fade-in',
+                                q.selectedOption.isCorrect ? 'border-green-500 bg-green-50 text-green-900' : 'border-orange-500 bg-orange-50 text-orange-900'
+                            ]"
+                        >
+                            <h4 class="mb-1 font-bold">
+                                {{ q.selectedOption.isCorrect ? '🎉 Lý luận khoa học chính xác:' : '💡 Tháo gỡ góc nghẽn tư duy:' }}
+                            </h4>
+                            <p v-html="q.selectedOption.feedback"></p>
+                        </div>
+                    </article>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        const app = Vue.createApp({
+            data() {
+                const cards = [
+                    {
+                        id: 'item_1',
+                        text: 'Thế năng của hệ đạt giá trị cực đại toàn phần, cơ năng tập trung hoàn toàn ở lò xo hoặc độ lệch góc con lắc.',
+                        matchId: 'max_a'
+                    },
+                    {
+                        id: 'item_2',
+                        text: 'Động năng của vật đạt giá trị cực đại, vật nặng đi qua gốc tọa độ O với tốc độ chuyển động lớn nhất.',
+                        matchId: 'zero_a'
+                    },
+                    {
+                        id: 'item_3',
+                        text: 'Cơ năng toàn phần được chia đều thành hai nửa bằng nhau, động năng bằng thế năng ($W_d=W_t=W/2$).',
+                        matchId: 'spec_a'
+                    },
+                    {
+                        id: 'item_4',
+                        text: 'Lực kéo về tác dụng lên chất điểm triệt tiêu, hợp lực tác dụng lên vật bằng 0.',
+                        matchId: 'zero_a'
+                    },
+                    {
+                        id: 'item_5',
+                        text: 'Thế năng chiếm đúng 50% cơ năng toàn phần của hệ vật dao động điều hòa.',
+                        matchId: 'spec_a'
+                    }
+                ];
+
+                return {
+                    tabs: [
+                        { id: 'tab1', name: '1. Khởi động' },
+                        { id: 'tab2', name: '2. Lý thuyết' },
+                        { id: 'tab3', name: '3. Mô phỏng' },
+                        { id: 'tab4', name: '4. Đánh giá' }
+                    ],
+                    currentTab: 'tab1',
+
+                    draggedItem: null,
+                    sourceZone: null,
+                    allCards: cards,
+                    conceptZones: [
+                        { id: 'max_a', title: 'Vùng Gia tốc cực đại về độ lớn ($|a|=\\omega^2A$)', items: [] },
+                        { id: 'zero_a', title: 'Vùng Gia tốc triệt tiêu hoàn toàn ($a=0$)', items: [] },
+                        { id: 'spec_a', title: 'Vùng Gia tốc có độ lớn đặc biệt ($|a|=\\frac{\\omega^2A}{\\sqrt{2}}$)', items: [] }
+                    ],
+                    formulaBank: cards.map(item => ({ ...item })),
+
+                    mass: 0.2,
+                    amplitude: 8,
+                    omegaMultiplier: 2,
+                    xCurrent: 0,
+                    myChart: null,
+                    isChartScheduled: false,
+
+                    quizData: [
+                        {
+                            id: 1,
+                            level: 'Nhận biết',
+                            question: 'Trong dao động điều hòa của một con lắc lò xo, tại vị trí mà gia tốc đại số của vật nặng triệt tiêu hoàn toàn ($a=0$), trạng thái năng lượng của hệ vật lúc này như thế nào?',
+                            options: [
+                                { id: 'A', text: 'Thế năng của hệ đạt giá trị cực đại, động năng triệt tiêu bằng 0.', isCorrect: false, feedback: '<b>Nhầm vị trí biên:</b> Gia tốc triệt tiêu $a=0$ khi vật ở vị trí cân bằng ($x=0$). Thế năng cực đại và động năng bằng 0 là đặc trưng tại vị trí biên ($x=\\pm A$), nơi gia tốc đạt độ lớn cực đại.' },
+                                { id: 'B', text: 'Động năng của vật đạt giá trị cực đại, thế năng của hệ triệt tiêu bằng 0.', isCorrect: true, feedback: '<b>Chính xác:</b> Theo $a=-\\omega^2x$, gia tốc bằng 0 nghĩa là vật đi qua vị trí cân bằng $x=0$. Tại đây, tốc độ vật đạt cực đại nên động năng đạt cực đại, còn thế năng bằng 0.' },
+                                { id: 'C', text: 'Động năng bằng thế năng và cùng bằng một nửa cơ năng toàn phần.', isCorrect: false, feedback: '<b>Nhầm vị trí chia đôi năng lượng:</b> Động năng bằng thế năng xảy ra tại $x=\\pm\\frac{A}{\\sqrt{2}}$. Khi đó $|a|=\\frac{\\omega^2A}{\\sqrt{2}}$, hoàn toàn không triệt tiêu.' },
+                                { id: 'D', text: 'Cả động năng và thế năng đồng thời triệt tiêu hoàn toàn bằng 0.', isCorrect: false, feedback: '<b>Vi phạm bảo toàn cơ năng:</b> Tổng động năng và thế năng là cơ năng không đổi. Trong dao động điều hòa đang xét, chúng không thể đồng thời bằng 0.' }
+                            ],
+                            selectedOption: null
+                        },
+                        {
+                            id: 2,
+                            level: 'Thông hiểu',
+                            question: 'Một vật dao động điều hòa quanh vị trí cân bằng với biên độ $A$ và tần số góc $\\omega$. Tại vị trí mà động năng của vật bằng 3 lần thế năng ($W_d=3W_t$), gia tốc đại số $a$ của vật liên hệ với tọa độ vị trí như thế nào?',
+                            options: [
+                                { id: 'A', text: 'Gia tốc đại số của vật có giá trị $a=\\mp\\frac{\\omega^2A}{2}$, ứng với tọa độ $x=\\pm\\frac{A}{2}$.', isCorrect: true, feedback: '<b>Xử lý toán lý chính xác:</b> Khi $W_d=3W_t\\Rightarrow W=4W_t\\Rightarrow x^2=\\frac{A^2}{4}\\Rightarrow x=\\pm\\frac{A}{2}$. Thế vào $a=-\\omega^2x$ ta được $a=\\mp\\frac{\\omega^2A}{2}$.' },
+                                { id: 'B', text: 'Gia tốc đại số của vật có giá trị $a=\\mp\\frac{\\omega^2A}{4}$, ứng với tọa độ $x=\\pm\\frac{A}{4}$.', isCorrect: false, feedback: '<b>Lỗi bậc hai căn thức:</b> Bạn đã quên lấy căn bậc hai khi rút li độ $x$ từ biểu thức năng lượng dạng bình phương.' },
+                                { id: 'C', text: 'Gia tốc đại số của vật có giá trị $a=\\mp\\frac{\\sqrt{3}\\omega^2A}{2}$, ứng với tọa độ $x=\\pm\\frac{\\sqrt{3}A}{2}$.', isCorrect: false, feedback: '<b>Lỗi hoán đổi đại lượng:</b> Vị trí $\\frac{\\sqrt{3}}{2}A$ ứng với trường hợp thế năng bằng 3 lần động năng ($W_t=3W_d$), ngược với yêu cầu đề bài.' },
+                                { id: 'D', text: 'Gia tốc đại số của vật có giá trị $a=0$, ứng với tọa độ $x=0$.', isCorrect: false, feedback: '<b>Nhầm điểm cực đại động năng:</b> Tại $x=0$ thì động năng cực đại, thế năng bằng 0, nên tỉ số $W_d/W_t$ tiến tới vô hạn chứ không bằng 3.' }
+                            ],
+                            selectedOption: null
+                        },
+                        {
+                            id: 3,
+                            level: 'Vận dụng',
+                            question: 'Một con lắc lò xo gồm vật nặng khối lượng $m=400\\text{ g}$ và lò xo có độ cứng $k=100\\text{ N/m}$ đang dao động điều hòa với cơ năng toàn phần $W=0,08\\text{ J}$. Tại thời điểm vật có gia tốc đại số $a=-5\\text{ m/s}^2$, động năng của con lắc bằng bao nhiêu?',
+                            options: [
+                                { id: 'A', text: '$0,060\\text{ J}$', isCorrect: true, feedback: '<b>Tính toán hệ SI chính xác:</b> Đổi $m=0,4\\text{ kg}$ nên $\\omega^2=\\frac{k}{m}=\\frac{100}{0,4}=250\\text{ rad}^2/\\text{s}^2$. Từ $a=-\\omega^2x$ suy ra $x=-\\frac{a}{\\omega^2}=\\frac{5}{250}=0,02\\text{ m}$. Thế năng tại vị trí đó: $W_t=\\frac{1}{2}kx^2=0,5\\times100\\times0,02^2=0,02\\text{ J}$. Vậy $W_d=W-W_t=0,08-0,02=0,060\\text{ J}$.' },
+                                { id: 'B', text: '$0,008\\text{ J}$', isCorrect: false, feedback: '<b>Tính sai li độ hoặc đơn vị:</b> Cần đổi khối lượng sang kg và dùng $x=-a/\\omega^2$ trước khi tính thế năng.' },
+                                { id: 'C', text: '$0,012\\text{ J}$', isCorrect: false, feedback: '<b>Lỗi phép trừ năng lượng:</b> Động năng tại thời điểm đang xét phải là phần còn lại của cơ năng sau khi trừ thế năng.' },
+                                { id: 'D', text: '$0,040\\text{ J}$', isCorrect: false, feedback: '<b>Nhầm quan hệ chia đều năng lượng:</b> $W_d=W_t$ chỉ xảy ra tại $x=\\pm A/\\sqrt{2}$, không phải mọi thời điểm trong dao động.' }
+                            ],
+                            selectedOption: null
+                        },
+                        {
+                            id: 4,
+                            level: 'Vận dụng cao',
+                            question: 'Khảo sát đồ thị năng lượng theo li độ không gian $E-x$ của một con lắc lò xo có khối lượng vật nặng $m=100\\text{ g}$. Đường thẳng cơ năng toàn phần cắt trục tung tại mốc $0,08\\text{ J}$. Đường parabol thế năng $W_t$ cắt đường parabol động năng $W_d$ tại một điểm có gia tốc độ lớn $|a|=8\\sqrt{2}\\text{ m/s}^2$. Biên độ dao động $A$ của con lắc này bằng bao nhiêu?',
+                            options: [
+                                { id: 'A', text: '$4,0\\text{ cm}$', isCorrect: false, feedback: '<b>Quên đổi đơn vị hoặc lệch dấu phẩy:</b> Kết quả cuối cần đổi từ mét sang xentimét thật cẩn thận.' },
+                                { id: 'B', text: '$5,0\\text{ cm}$', isCorrect: false, feedback: '<b>Sai hệ số trung gian:</b> Cần dùng đúng $|a|=a_{\\max}/\\sqrt{2}$ tại giao điểm hai parabol năng lượng.' },
+                                { id: 'C', text: '$8,0\\text{ cm}$', isCorrect: false, feedback: '<b>Sai hệ số căn thức giao điểm:</b> Tại giao điểm $W_d=W_t$, li độ là $x=\\pm A/\\sqrt{2}$ nên độ lớn gia tốc là $\\omega^2A/\\sqrt{2}$.' },
+                                { id: 'D', text: '$10,0\\text{ cm}$', isCorrect: true, feedback: '<b>Giải bài toán đồ thị chính xác:</b> Giao điểm đồ thị $\\Rightarrow W_d=W_t=W/2\\Rightarrow |a|=\\frac{a_{\\max}}{\\sqrt{2}}=\\frac{\\omega^2A}{\\sqrt{2}}$. Đề bài cho $|a|=8\\sqrt{2}$ nên $\\omega^2A=16\\text{ m/s}^2$. Cơ năng: $W=\\frac{1}{2}m\\omega^2A^2=\\frac{1}{2}m(\\omega^2A)A$. Do đó $0,08=0,5\\times0,1\\times16\\times A\\Rightarrow A=0,1\\text{ m}=10\\text{ cm}$.' }
+                            ],
+                            selectedOption: null
+                        }
+                    ]
+                };
+            },
+
+            computed: {
+                omega() {
+                    return this.omegaMultiplier * Math.PI;
+                },
+                computedW() {
+                    const ampMeter = this.amplitude / 100;
+                    return 0.5 * this.mass * this.omega * this.omega * ampMeter * ampMeter * 1000;
+                },
+                computedWt() {
+                    const xMeter = this.xCurrent / 100;
+                    return 0.5 * this.mass * this.omega * this.omega * xMeter * xMeter * 1000;
+                },
+                computedWd() {
+                    return Math.max(0, this.computedW - this.computedWt);
+                },
+                computedV() {
+                    const diffCm2 = this.amplitude * this.amplitude - this.xCurrent * this.xCurrent;
+                    return this.omega * Math.sqrt(Math.max(0, diffCm2));
+                },
+                computedA() {
+                    const xMeter = this.xCurrent / 100;
+                    return -this.omega * this.omega * xMeter;
+                }
+            },
+
+            watch: {
+                mass() { this.scheduleChartUpdate(); },
+                omegaMultiplier() { this.scheduleChartUpdate(); },
+                amplitude(newVal) {
+                    if (this.xCurrent > newVal) this.xCurrent = newVal;
+                    if (this.xCurrent < -newVal) this.xCurrent = -newVal;
+                    this.scheduleChartUpdate();
+                },
+                xCurrent() { this.scheduleChartUpdate(); }
+            },
+
+            mounted() {
+                window.addEventListener('mathjax-ready', this.triggerMathJax);
+                this.triggerMathJax();
+            },
+
+            beforeUnmount() {
+                window.removeEventListener('mathjax-ready', this.triggerMathJax);
+                if (this.myChart) this.myChart.destroy();
+            },
+
+            methods: {
+                cloneCards() {
+                    return this.allCards.map(item => ({ ...item }));
+                },
+
+                resetDragGame() {
+                    this.conceptZones.forEach(zone => { zone.items = []; });
+                    this.formulaBank = this.cloneCards();
+                    this.draggedItem = null;
+                    this.sourceZone = null;
+                    this.triggerMathJax();
+                },
+
+                onDragStart(event, item, source) {
+                    this.draggedItem = item;
+                    this.sourceZone = source;
+                    event.dataTransfer.effectAllowed = 'move';
+                    event.dataTransfer.setData('text/plain', item.id);
+                },
+
+                onDragEnd() {
+                    this.draggedItem = null;
+                    this.sourceZone = null;
+                },
+
+                removeDraggedItemFromSource() {
+                    if (this.sourceZone === 'bank') {
+                        this.formulaBank = this.formulaBank.filter(item => item.id !== this.draggedItem.id);
+                        return;
+                    }
+
+                    const zone = this.conceptZones.find(item => item.id === this.sourceZone);
+                    if (zone) {
+                        zone.items = zone.items.filter(item => item.id !== this.draggedItem.id);
+                    }
+                },
+
+                onDrop(event, targetZone) {
+                    if (!this.draggedItem) return;
+
+                    const movedItem = { ...this.draggedItem };
+                    this.removeDraggedItemFromSource();
+
+                    if (targetZone === 'bank') {
+                        this.formulaBank.push(movedItem);
+                    } else {
+                        const zone = this.conceptZones.find(item => item.id === targetZone);
+                        if (zone) zone.items.push(movedItem);
+                    }
+
+                    this.draggedItem = null;
+                    this.sourceZone = null;
+                    this.triggerMathJax();
+                },
+
+                getZoneColor(zone) {
+                    if (zone.items.length === 0) return 'border-gray-300 bg-slate-50';
+                    const isAllCorrect = zone.items.every(item => item.matchId === zone.id);
+                    return isAllCorrect ? 'border-green-500 bg-green-100 text-green-950' : 'border-red-500 bg-red-100 text-red-950';
+                },
+
+                switchTab(tabId) {
+                    this.currentTab = tabId;
+                    this.triggerMathJax();
+
+                    if (tabId === 'tab3') {
+                        this.$nextTick(() => {
+                            if (!this.myChart) {
+                                this.initChart();
+                            } else {
+                                this.myChart.resize();
+                                this.updateOscillationChart();
+                            }
+                        });
+                    }
+                },
+
+                triggerMathJax() {
+                    this.$nextTick(() => {
+                        if (window.MathJax && MathJax.typesetPromise) {
+                            MathJax.typesetClear([document.getElementById('app')]);
+                            MathJax.typesetPromise([document.getElementById('app')]).catch(error => console.warn('MathJax error:', error));
+                        }
+                    });
+                },
+
+                selectOption(question, option) {
+                    question.selectedOption = option;
+                    this.triggerMathJax();
+                },
+
+                getOptionClass(question, option) {
+                    if (!question.selectedOption) {
+                        return 'border-gray-200 bg-slate-50 hover:border-blue-400 hover:bg-blue-50 cursor-pointer';
+                    }
+                    if (question.selectedOption.id === option.id) {
+                        return option.isCorrect
+                            ? 'border-green-600 bg-green-100 text-green-900 shadow-md font-medium cursor-pointer'
+                            : 'border-red-600 bg-red-100 text-red-900 shadow-md font-medium cursor-pointer';
+                    }
+                    return 'border-gray-200 bg-slate-50 opacity-60 cursor-pointer';
+                },
+
+                generateChartData() {
+                    const wtData = [];
+                    const wdData = [];
+                    const wTotalData = [];
+                    const A = this.amplitude;
+                    const m = this.mass;
+                    const omega = this.omega;
+                    const ampMeter = A / 100;
+                    const totalEnergy = 0.5 * m * omega * omega * ampMeter * ampMeter * 1000;
+                    const segments = 120;
+
+                    for (let i = 0; i <= segments; i++) {
+                        const xCm = -A + (2 * A * i) / segments;
+                        const xMeter = xCm / 100;
+                        const wt = 0.5 * m * omega * omega * xMeter * xMeter * 1000;
+                        const wd = Math.max(0, totalEnergy - wt);
+                        wtData.push({ x: Number(xCm.toFixed(3)), y: Number(wt.toFixed(4)) });
+                        wdData.push({ x: Number(xCm.toFixed(3)), y: Number(wd.toFixed(4)) });
+                        wTotalData.push({ x: Number(xCm.toFixed(3)), y: Number(totalEnergy.toFixed(4)) });
+                    }
+
+                    return { wtData, wdData, wTotalData, totalEnergy };
+                },
+
+                initChart() {
+                    if (typeof Chart === 'undefined') return;
+
+                    const canvas = document.getElementById('oscillationCanvas');
+                    if (!canvas) return;
+
+                    const context = canvas.getContext('2d');
+                    const { wtData, wdData, wTotalData, totalEnergy } = this.generateChartData();
+
+                    this.myChart = Vue.markRaw(new Chart(context, {
+                        type: 'line',
+                        data: {
+                            datasets: [
+                                {
+                                    label: 'Thế năng Wt (mJ)',
+                                    data: wtData,
+                                    parsing: false,
+                                    borderColor: '#2563eb',
+                                    backgroundColor: 'transparent',
+                                    borderWidth: 2.5,
+                                    pointRadius: 0,
+                                    tension: 0.15,
+                                    order: 4
+                                },
+                                {
+                                    label: 'Động năng Wd (mJ)',
+                                    data: wdData,
+                                    parsing: false,
+                                    borderColor: '#10b981',
+                                    backgroundColor: 'transparent',
+                                    borderWidth: 2.5,
+                                    pointRadius: 0,
+                                    tension: 0.15,
+                                    order: 5
+                                },
+                                {
+                                    label: 'Cơ năng bảo toàn W (mJ)',
+                                    data: wTotalData,
+                                    parsing: false,
+                                    borderColor: '#b91c1c',
+                                    backgroundColor: 'transparent',
+                                    borderWidth: 2,
+                                    borderDash: [6, 5],
+                                    pointRadius: 0,
+                                    tension: 0,
+                                    order: 6
+                                },
+                                {
+                                    label: 'Marker thế năng tại x',
+                                    data: [],
+                                    parsing: false,
+                                    borderColor: '#7c3aed',
+                                    backgroundColor: '#7c3aed',
+                                    pointRadius: 7,
+                                    pointHoverRadius: 9,
+                                    showLine: false,
+                                    order: 1
+                                },
+                                {
+                                    label: 'Marker động năng tại x',
+                                    data: [],
+                                    parsing: false,
+                                    borderColor: '#f59e0b',
+                                    backgroundColor: '#f59e0b',
+                                    pointRadius: 7,
+                                    pointHoverRadius: 9,
+                                    showLine: false,
+                                    order: 2
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            animation: false,
+                            interaction: { intersect: false, mode: 'nearest' },
+                            scales: {
+                                x: {
+                                    type: 'linear',
+                                    min: -this.amplitude,
+                                    max: this.amplitude,
+                                    title: {
+                                        display: true,
+                                        text: 'Trục li độ không gian x (cm)',
+                                        font: { size: 14, weight: 'bold' }
+                                    },
+                                    grid: { color: '#f1f5f9' }
+                                },
+                                y: {
+                                    min: 0,
+                                    max: Math.max(totalEnergy * 1.15, 1),
+                                    title: {
+                                        display: true,
+                                        text: 'Năng lượng cơ học E (mJ)',
+                                        font: { size: 14, weight: 'bold' }
+                                    }
+                                }
+                            },
+                            plugins: {
+                                legend: { labels: { font: { size: 12, weight: 'bold' } } },
+                                tooltip: {
+                                    callbacks: {
+                                        label(context) {
+                                            const point = context.raw;
+                                            const y = typeof point === 'object' ? point.y : context.parsed.y;
+                                            return `${context.dataset.label}: ${Number(y).toFixed(2)} mJ`;
+                                        },
+                                        title(items) {
+                                            if (!items.length) return '';
+                                            const point = items[0].raw;
+                                            const x = typeof point === 'object' ? point.x : items[0].parsed.x;
+                                            return `x = ${Number(x).toFixed(2)} cm`;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }));
+
+                    this.updateCurrentMarkers();
+                    this.myChart.update('none');
+                },
+
+                scheduleChartUpdate() {
+                    if (this.isChartScheduled) return;
+                    this.isChartScheduled = true;
+
+                    requestAnimationFrame(() => {
+                        this.updateOscillationChart();
+                        this.isChartScheduled = false;
+                    });
+                },
+
+                updateCurrentMarkers() {
+                    if (!this.myChart) return;
+
+                    const x = Number(this.xCurrent.toFixed(3));
+                    this.myChart.data.datasets[3].data = [{ x, y: Number(this.computedWt.toFixed(4)) }];
+                    this.myChart.data.datasets[4].data = [{ x, y: Number(this.computedWd.toFixed(4)) }];
+                },
+
+                updateOscillationChart() {
+                    if (!this.myChart) return;
+
+                    const { wtData, wdData, wTotalData, totalEnergy } = this.generateChartData();
+                    this.myChart.data.datasets[0].data = wtData;
+                    this.myChart.data.datasets[1].data = wdData;
+                    this.myChart.data.datasets[2].data = wTotalData;
+                    this.myChart.options.scales.x.min = -this.amplitude;
+                    this.myChart.options.scales.x.max = this.amplitude;
+                    this.myChart.options.scales.y.max = Math.max(totalEnergy * 1.15, 1);
+                    this.updateCurrentMarkers();
+                    this.myChart.update('none');
+                }
+            }
+        });
+
+        app.mount('#app');
+    </script>
+</body>
+</html>
